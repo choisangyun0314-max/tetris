@@ -94,17 +94,17 @@ export default function TetrisGame() {
   };
 
   // Lock piece and check lines
-  const lockPiece = useCallback(() => {
-    if (!currentPiece) return;
+  const lockPiece = useCallback((pieceToLock = currentPiece) => {
+    if (!pieceToLock) return;
 
     const newGrid = [...grid.map(row => [...row])];
-    currentPiece.tetromino.shape.forEach((row: number[], yIdx: number) => {
+    pieceToLock.tetromino.shape.forEach((row: number[], yIdx: number) => {
       row.forEach((value: number, xIdx: number) => {
         if (value !== 0) {
-          const gridY = currentPiece.pos.y + yIdx;
-          const gridX = currentPiece.pos.x + xIdx;
-          if (gridY >= 0) {
-            newGrid[gridY][gridX] = currentPiece.tetromino.color;
+          const gridY = pieceToLock.pos.y + yIdx;
+          const gridX = pieceToLock.pos.x + xIdx;
+          if (gridY >= 0 && gridY < ROWS && gridX >= 0 && gridX < COLS) {
+            newGrid[gridY][gridX] = pieceToLock.tetromino.color;
           }
         }
       });
@@ -172,26 +172,36 @@ export default function TetrisGame() {
     }
   }, [currentPiece, grid, gameState]);
 
+  // Hard drop
+  const hardDrop = useCallback(() => {
+    if (gameState !== 'PLAYING' || !currentPiece) return;
+    
+    let dropY = currentPiece.pos.y;
+    while (!checkCollision(currentPiece.pos.x, dropY + 1, currentPiece.tetromino.shape, grid)) {
+      dropY++;
+    }
+    
+    lockPiece({ ...currentPiece, pos: { ...currentPiece.pos, y: dropY } });
+  }, [currentPiece, grid, gameState, lockPiece]);
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (gameState !== 'PLAYING') return;
+      
+      if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' '].includes(e.key)) {
+        e.preventDefault();
+      }
+
       if (e.key === 'ArrowLeft') movePiece(-1, 0);
       if (e.key === 'ArrowRight') movePiece(1, 0);
       if (e.key === 'ArrowDown') movePiece(0, 1);
       if (e.key === 'ArrowUp') rotatePiece();
-      if (e.key === ' ') {
-        while (!checkCollision(currentPiece!.pos.x, currentPiece!.pos.y + 1, currentPiece!.tetromino.shape, grid)) {
-           // This is just a manual drop for now, but we need to update state correctly.
-           // Simplified: just call movePiece(0, 1) repeatedly is hard with state.
-           // Better to just let it fall naturally or implement a hard-drop logic correctly.
-           movePiece(0, 1);
-        }
-      }
+      if (e.key === ' ') hardDrop();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, movePiece, rotatePiece, currentPiece, grid]);
+  }, [gameState, movePiece, rotatePiece, hardDrop]);
 
   // Game Timer
   useEffect(() => {
